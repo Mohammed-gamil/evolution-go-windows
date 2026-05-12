@@ -64,12 +64,10 @@ make docker-run
 
 ### Local development
 
+#### Linux/macOS
 ```bash
 git clone https://github.com/evolution-foundation/evolution-go.git
 cd evolution-go
-
-# Clone whatsmeow dependency
-git clone git@github.com:evolution-foundation/whatsmeow.git whatsmeow-lib
 
 # Setup, configure and run
 make setup
@@ -77,11 +75,24 @@ cp .env.example .env
 make dev
 ```
 
-> Run `make help` to see all available commands. See [COMMANDS.md](./COMMANDS.md) for detailed workflows.
+#### Windows
+```powershell
+git clone https://github.com/Mohammed-gamil/evolution-go-windows.git
+cd evolution-go-windows
+
+# Setup, configure and run
+.\build.ps1 setup
+copy .env.example .env
+.\build.ps1 dev
+```
+
+> Run `make help` (Linux/Mac) or `.\build.ps1` (Windows) to see all available commands. See [COMMANDS.md](./COMMANDS.md) for detailed workflows.
 
 ---
 
 ## Configuration
+
+The application uses environment variables for configuration. You can use a PostgreSQL database or fall back to **SQLite** (default if Postgres variables are empty).
 
 Create a `.env` file:
 
