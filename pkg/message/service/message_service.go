@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -281,7 +282,7 @@ func (m *messageService) DownloadMedia(data *DownloadMediaStruct, instance *inst
 		return nil, "", errors.New("invalid media type")
 	}
 
-	userDirectory := fmt.Sprintf(`files/user_%s`, instance.Id)
+	userDirectory := filepath.Join("files", fmt.Sprintf("user_%s", instance.Id))
 	_, err = os.Stat(userDirectory)
 	if os.IsNotExist(err) {
 		errDir := os.MkdirAll(userDirectory, 0751)
