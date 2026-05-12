@@ -11,6 +11,7 @@ import (
 
 	"github.com/gomessguii/logger"
 	"gorm.io/driver/postgres"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
 	config_env "github.com/EvolutionAPI/evolution-go/pkg/config/env"
@@ -142,12 +143,19 @@ func extractDBNameAndAdminDSN(dsn string) (string, string, error) {
 	return dbName, strings.Join(adminParts, " "), nil
 }
 
-func (c *Config) CreateUsersDB() (*gorm.DB, error) {
-	logger.LogDebug("Connecting to database on: %s", c.postgresUsersDB)
-
+func (c *Config) CreateUsersDB(sqliteDB *sql.DB) (*gorm.DB, error) {
 	dbDSN := c.postgresUsersDB
 
-	if c.postgresUsersDB == "" {
+	// Se não houver DSN de PostgreSQL, tenta usar o SQLite fornecido
+	if dbDSN == "" && (c.PostgresHost == "" || c.PostgresPort == "" || c.PostgresUser == "" || c.PostgresPassword == "" || c.PostgresDB == "") {
+		if sqliteDB != nil {
+			logger.LogInfo("[CONFIG] Using SQLite for users database")
+			return gorm.Open(sqlite.Dialector{Conn: sqliteDB}, &gorm.Config{})
+		}
+		return nil, fmt.Errorf("no database configuration provided (Postgres missing and SQLite nil)")
+	}
+
+	if dbDSN == "" {
 		dbDSN = fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable", c.PostgresHost, c.PostgresPort, c.PostgresUser, c.PostgresPassword, c.PostgresDB)
 	}
 
@@ -178,10 +186,15 @@ func (c *Config) CreateUsersDB() (*gorm.DB, error) {
 	return db, nil
 }
 
-func (c *Config) CreateAuthDB() (*sql.DB, error) {
+func (c *Config) CreateAuthDB(sqliteDB *sql.DB) (*sql.DB, error) {
 	dbDSN := c.postgresUsersDB
 
-	if c.postgresUsersDB == "" {
+	// Se não houver DSN de PostgreSQL, usa o SQLite fornecido
+	if dbDSN == "" && (c.PostgresHost == "" || c.PostgresPort == "" || c.PostgresUser == "" || c.PostgresPassword == "" || c.PostgresDB == "") {
+		return sqliteDB, nil
+	}
+
+	if dbDSN == "" {
 		dbDSN = fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable", c.PostgresHost, c.PostgresPort, c.PostgresUser, c.PostgresPassword, c.PostgresDB)
 	}
 
@@ -219,10 +232,6 @@ func Load() *Config {
 	postgresUser := os.Getenv(config_env.POSTGRES_USER)
 	postgresPassword := os.Getenv(config_env.POSTGRES_PASSWORD)
 	postgresDB := os.Getenv(config_env.POSTGRES_DB)
-
-	if postgresUsersDB == "" && (postgresHost == "" || postgresPort == "" || postgresUser == "" || postgresPassword == "" || postgresDB == "") {
-		logger.LogFatal("[CONFIG] required database configuration variables are missing. Please check your environment configuration.")
-	}
 
 	databaseSaveMessages := os.Getenv(config_env.DATABASE_SAVE_MESSAGES)
 	panicIfEmpty(config_env.DATABASE_SAVE_MESSAGES, databaseSaveMessages)

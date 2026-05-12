@@ -275,7 +275,7 @@ func initAuthDB(config *config.Config) (*sql.DB, string, error) {
 	}
 	exPath := filepath.Dir(ex)
 
-	dbDirectory := exPath + "/dbdata"
+	dbDirectory := filepath.Join(exPath, "dbdata")
 	_, err = os.Stat(dbDirectory)
 	if os.IsNotExist(err) {
 		errDir := os.MkdirAll(dbDirectory, 0751)
@@ -284,7 +284,7 @@ func initAuthDB(config *config.Config) (*sql.DB, string, error) {
 		}
 	}
 
-	db, err := sql.Open("sqlite", exPath+"/dbdata/users.db?_pragma=foreign_keys(1)&_busy_timeout=3000")
+	db, err := sql.Open("sqlite", filepath.Join(exPath, "dbdata", "users.db")+"?_pragma=foreign_keys(1)&_busy_timeout=3000")
 	if err != nil {
 		return nil, "", err
 	}
@@ -339,20 +339,6 @@ func main() {
 
 	startTime := time.Now()
 
-	db, err := cfg.CreateUsersDB()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// Inicializar PostgreSQL AUTH
-	authDB, err := initPostgresAuthDB(cfg)
-	if err != nil {
-		log.Fatal(err)
-	}
-	if authDB != nil {
-		defer authDB.Close()
-	}
-
 	// Manter inicialização do SQLite
 	sqliteDB, exPath, err := initAuthDB(cfg)
 	if err != nil {
@@ -360,6 +346,20 @@ func main() {
 	}
 	if sqliteDB != nil {
 		defer sqliteDB.Close()
+	}
+
+	db, err := cfg.CreateUsersDB(sqliteDB)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Inicializar PostgreSQL AUTH
+	authDB, err := cfg.CreateAuthDB(sqliteDB)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if authDB != nil && authDB != sqliteDB {
+		defer authDB.Close()
 	}
 
 	migrate(db)

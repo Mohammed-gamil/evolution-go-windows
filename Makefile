@@ -5,22 +5,43 @@ APP_NAME=evolution-go
 MAIN_PATH=cmd/evolution-go/main.go
 BUILD_DIR=build
 GO=go
-VERSION=$(shell grep -om1 "v[0-9].*" CHANGELOG.md)
+VERSION=$(shell go run cmd/version/main.go)
 LDFLAGS=-ldflags "-X main.version=$(VERSION)"
 GOFLAGS=-v
 
-# Cores para output
-GREEN=\033[0;32m
-YELLOW=\033[0;33m
-RED=\033[0;31m
-NC=\033[0m # No Color
+# Detectar OS
+ifeq ($(OS),Windows_NT)
+    MKDIR = if not exist $(subst /,\,$(1)) mkdir $(subst /,\,$(1))
+    RM = if exist $(subst /,\,$(1)) rd /s /q $(subst /,\,$(1))
+    RM_F = if exist $(subst /,\,$(1)) del /f /q $(subst /,\,$(1))
+    EXE = .exe
+    GREEN=
+    YELLOW=
+    RED=
+    NC=
+else
+    MKDIR = mkdir -p $(1)
+    RM = rm -rf $(1)
+    RM_F = rm -f $(1)
+    EXE =
+    # Cores para output
+    GREEN=\033[0;32m
+    YELLOW=\033[0;33m
+    RED=\033[0;31m
+    NC=\033[0m # No Color
+endif
 
 ##@ Ajuda
 
 help: ## Exibe esta mensagem de ajuda
 	@echo "$(GREEN)Evolution GO - Makefile$(NC)"
 	@echo ""
-	@awk 'BEGIN {FS = ":.*##"; printf "\nUso:\n  make $(YELLOW)<target>$(NC)\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  $(GREEN)%-15s$(NC) %s\n", $$1, $$2 } /^##@/ { printf "\n$(YELLOW)%s$(NC)\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+	@if command -v awk > /dev/null 2>&1; then \
+		awk 'BEGIN {FS = ":.*##"; printf "\nUso:\n  make $(YELLOW)<target>$(NC)\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  $(GREEN)%-15s$(NC) %s\n", $$1, $$2 } /^##@/ { printf "\n$(YELLOW)%s$(NC)\n", substr($$0, 5) } ' $(MAKEFILE_LIST); \
+	else \
+		echo "Uso: make [alvo]. Veja o Makefile para detalhes."; \
+		echo "Alvos comuns: dev, build, clean, setup, test"; \
+	fi
 
 ##@ Desenvolvimento
 
@@ -45,19 +66,19 @@ watch: ## Roda a aplicação com hot reload (requer air)
 
 build: ## Compila a aplicação
 	@echo "$(GREEN)🔨 Compilando $(APP_NAME)...$(NC)"
-	@mkdir -p $(BUILD_DIR)
-	$(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(APP_NAME) $(MAIN_PATH)
-	@echo "$(GREEN)✅ Build completo: $(BUILD_DIR)/$(APP_NAME)$(NC)"
+	@$(call MKDIR,$(BUILD_DIR))
+	$(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(APP_NAME)$(EXE) $(MAIN_PATH)
+	@echo "$(GREEN)✅ Build completo: $(BUILD_DIR)/$(APP_NAME)$(EXE)$(NC)"
 
 build-linux: ## Compila para Linux
 	@echo "$(GREEN)🔨 Compilando para Linux...$(NC)"
-	@mkdir -p $(BUILD_DIR)
+	@$(call MKDIR,$(BUILD_DIR))
 	GOOS=linux GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(APP_NAME)-linux-amd64 $(MAIN_PATH)
 	@echo "$(GREEN)✅ Build Linux completo$(NC)"
 
 build-windows: ## Compila para Windows
 	@echo "$(GREEN)🔨 Compilando para Windows...$(NC)"
-	@mkdir -p $(BUILD_DIR)
+	@$(call MKDIR,$(BUILD_DIR))
 	GOOS=windows GOARCH=amd64 $(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BUILD_DIR)/$(APP_NAME)-windows-amd64.exe $(MAIN_PATH)
 	@echo "$(GREEN)✅ Build Windows completo$(NC)"
 
@@ -122,13 +143,8 @@ deps-reset: ## Limpa cache e reinstala dependências (força uso do código loca
 
 swagger: ## Gera documentação Swagger
 	@echo "$(GREEN)📚 Gerando documentação Swagger...$(NC)"
-	@if command -v swag > /dev/null; then \
-		swag init -g $(MAIN_PATH) -o ./docs; \
-		echo "$(GREEN)✅ Swagger gerado com sucesso$(NC)"; \
-	else \
-		echo "$(RED)❌ Swag não instalado. Instale com: go install github.com/swaggo/swag/cmd/swag@latest$(NC)"; \
-		exit 1; \
-	fi
+	swag init -g $(MAIN_PATH) -o ./docs && \
+	echo "$(GREEN)✅ Swagger gerado com sucesso$(NC)"
 
 docs: ## Abre a documentação local
 	@echo "$(GREEN)📖 Abrindo documentação...$(NC)"
@@ -142,19 +158,11 @@ docs: ## Abre a documentação local
 
 migrate-up: ## Executa migrations do banco de dados
 	@echo "$(GREEN)🗃️  Executando migrations...$(NC)"
-	@if [ -d "migrations" ]; then \
-		$(GO) run $(MAIN_PATH) migrate up; \
-	else \
-		echo "$(YELLOW)⚠️  Diretório migrations não encontrado$(NC)"; \
-	fi
+	$(GO) run $(MAIN_PATH) migrate up
 
 migrate-down: ## Reverte migrations do banco de dados
 	@echo "$(YELLOW)⚠️  Revertendo migrations...$(NC)"
-	@if [ -d "migrations" ]; then \
-		$(GO) run $(MAIN_PATH) migrate down; \
-	else \
-		echo "$(YELLOW)⚠️  Diretório migrations não encontrado$(NC)"; \
-	fi
+	$(GO) run $(MAIN_PATH) migrate down
 
 ##@ Docker
 
@@ -187,13 +195,8 @@ fmt: ## Formata o código
 
 lint: ## Executa linter (requer golangci-lint)
 	@echo "$(GREEN)🔍 Executando linter...$(NC)"
-	@if command -v golangci-lint > /dev/null; then \
-		golangci-lint run ./...; \
-		echo "$(GREEN)✅ Lint completo$(NC)"; \
-	else \
-		echo "$(RED)❌ golangci-lint não instalado. Instale com: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest$(NC)"; \
-		exit 1; \
-	fi
+	golangci-lint run ./...; \
+	echo "$(GREEN)✅ Lint completo$(NC)"
 
 vet: ## Executa go vet
 	@echo "$(GREEN)🔍 Executando go vet...$(NC)"
@@ -206,8 +209,9 @@ check: fmt vet lint test ## Executa todas as verificações
 
 clean: ## Remove arquivos de build
 	@echo "$(YELLOW)🧹 Limpando arquivos de build...$(NC)"
-	@rm -rf $(BUILD_DIR)
-	@rm -f coverage.out coverage.html
+	@$(call RM,$(BUILD_DIR))
+	@$(call RM_F,coverage.out)
+	@$(call RM_F,coverage.html)
 	@echo "$(GREEN)✅ Limpeza completa$(NC)"
 
 clean-all: clean ## Remove arquivos de build e cache

@@ -12,6 +12,7 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -299,14 +300,14 @@ func (w whatsmeowService) StartClient(cd *ClientData) {
 		if w.config.PostgresAuthDB != "" {
 			container, err = sqlstore.New(context.Background(), "postgres", w.config.PostgresAuthDB, dbLog)
 		} else {
-			dsn := fmt.Sprintf("file:%s/dbdata/main.db?_pragma=foreign_keys(1)&_busy_timeout=5000&cache=shared&mode=rwc&_journal_mode=WAL", w.exPath)
+			dsn := fmt.Sprintf("file:%s?_pragma=foreign_keys(1)&_busy_timeout=5000&cache=shared&mode=rwc&_journal_mode=WAL", filepath.Join(w.exPath, "dbdata", "main.db"))
 			container, err = sqlstore.New(context.Background(), "sqlite", dsn, dbLog)
 		}
 	} else {
 		if w.config.PostgresAuthDB != "" {
 			container, err = sqlstore.New(context.Background(), "postgres", w.config.PostgresAuthDB, nil)
 		} else {
-			dsn := fmt.Sprintf("file:%s/dbdata/main.db?_pragma=foreign_keys(1)&_busy_timeout=5000&cache=shared&mode=rwc&_journal_mode=WAL", w.exPath)
+			dsn := fmt.Sprintf("file:%s?_pragma=foreign_keys(1)&_busy_timeout=5000&cache=shared&mode=rwc&_journal_mode=WAL", filepath.Join(w.exPath, "dbdata", "main.db"))
 			container, err = sqlstore.New(context.Background(), "sqlite", dsn, nil)
 		}
 	}
